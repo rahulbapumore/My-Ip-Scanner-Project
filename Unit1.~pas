@@ -1,0 +1,466 @@
+{This Application Accepts valid IP range and display their hostnames.
+ for ex. IP range Will be like...
+ Start IP Address - 192.168.2.1
+ End ip Address - 192.168.2.5
+ output will be
+ IP Address         Hostname
+ 192.168.2.1        PT_881
+ 192.168.2.2        Not Found
+ 192.168.2.3        Support 771
+ 192.168.2.4        Prateek
+ 192.168.2.5        Not Found
+}
+
+unit Unit1;         {It Is .Pas File name in project.It Contains Source Code}
+
+interface          {Interface Part Is all about declaration of classe(Variables and methods in class)}
+
+ {We can use Different API function
+ calls and built bunction by using
+ uses keyword..WebAdapt include predefined
+ Unit1 by using uses keyword}
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, Grids, DBGrids, StdCtrls,Winsock, ComCtrls;
+
+type
+  MainIpScannerThread = class(TThread)      //Inheriting TThread class
+  Private
+    MISTFromIpInt,MISTToIpInt     : Integer;   {Holds Start and End Ip Address}
+    NoOfHNFTCreated  : integer;                {Holds Count of Threads of HostNameFinder Thread Class}
+    MISTNoOfThreads  : Integer;      {Thread Count Entered By User}
+    Btn,MISTStartBtn : TButton;
+    MISTFromIpTxt,MISTToIpTxt,MISTNoOfThreadsTxt : TEdit;
+    MISTLstView : TListView;
+    Constructor Create(CreateSuspended:Boolean);
+	protected
+    procedure StopBtnClick(Sender: TObject);    {This Is used To attach onclick event from thread claa to btn control on form}
+		procedure Execute; override;
+    procedure OnThreadDone( Sender : TObject ); //Event for childThread terminated
+	public
+  end;
+
+  TForm1 = class(TForm)
+    FromIpLbl: TLabel;
+    ToIpLbl: TLabel;
+    NoOfThreadsLbl: TLabel;
+    FromIpTxt: TEdit;
+    ToIpTxt: TEdit;
+    NoOfThreadsTxt: TEdit;
+    ScanBtn: TButton;
+    StopBtn: TButton;
+    ListViewIp: TListView;
+    procedure FromIpTxtKeyPress(Sender: TObject; var Key: Char);
+    procedure ToIpTxtKeyPress(Sender: TObject; var Key: Char);
+    procedure NoOfThreadsTxtKeyPress(Sender: TObject; var Key: Char);
+    procedure FormCreate(Sender: TObject);
+    procedure ToIpTxtKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure FromIpTxtKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure ScanBtnClick(Sender: TObject);
+    procedure FormCanResize(Sender: TObject; var NewWidth,
+      NewHeight: Integer; var Resize: Boolean);
+    procedure NoOfThreadsTxtKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+  private
+    { Private declarations }
+  public
+    Function IpAddrValidation(Ip : String):Boolean;
+
+    { Public declarations }
+  end;
+
+	HstNameFndrThread = class(TThread)
+   Private
+     IP       : Integer;                          {Holds current Ip address To Find Host name}
+     HNFTLstView : TListView;
+     Constructor Create(CreateSuspended:Boolean);
+	public
+  protected
+		procedure Execute; Override;
+  end;
+
+var
+  Form1: TForm1;
+
+implementation
+
+{$R *.dfm}
+procedure TForm1.FromIpTxtKeyPress(Sender: TObject; var Key: Char);
+begin
+  try
+    {Allows Only 0-9 digits ,'.' character and backspace}
+    if not (Key in ['0'..'9','.',#8]) then
+      Key := #0;
+    if FromIpTxt.Text = '.' then
+    begin
+      if Key <> #8 then
+        Key := #0;
+    end;
+  except
+  end;
+end;
+
+procedure TForm1.ToIpTxtKeyPress(Sender: TObject; var Key: Char);
+begin
+  try
+    {Allows Only 0-9 digits ,'.' character and backspace}
+    if not (Key in ['0'..'9','.',#8]) then
+      Key := #0;
+    if ToIpTxt.Text = '.' then
+    begin
+      if Key <> #8 then
+        Key := #0;
+    end;
+
+  except
+  end;
+end;
+
+procedure TForm1.NoOfThreadsTxtKeyPress(Sender: TObject; var Key: Char);
+begin
+  try
+      {Allows Only 0-9 digits and backspace}
+    if not (key in ['0'..'9',#8]) then
+      Key := #0;
+  except
+  end;
+end;
+
+procedure TForm1.FormCreate(Sender: TObject);
+begin
+  try
+    FromIpTxt.MaxLength := 15;    {Sets Maxlength to textbox 1}
+    ToIpTxt.MaxLength := 15;      {Sets Maxlength to textbox 2}
+    NoOfThreadsTxt.MaxLength := 3;   {Sets Maxlength to textbox 3}
+    ScanBtn.Enabled := False;
+    StopBtn.Enabled := False;
+  except
+  end;
+end;
+
+{Checks Whether Ip Address for each byte
+is in range of 0-255 and misplace of '.' character}
+Function TForm1.IpAddrValidation(Ip : String):Boolean;
+Var
+  str        :  String;
+  Posn,Count :  Integer;
+Begin
+    Count :=0;
+    Result := False;
+    if (Ip <> '') then
+    Begin
+      if ((Length(Ip) > 15) or (Ip[1] = '.') or (Ip[Length(Ip)] = '.')) then
+        Exit
+      Else
+      Begin
+        Posn := Pos('.',IP);
+        While (Posn > 0 ) Do
+        Begin
+          Str := Copy(Ip,1,Posn-1);
+          if (StrToInt(Str) > 255) or (Length(Str) > 3) then
+            Exit;
+          Ip := Copy(Ip,Posn+1,Length(Ip));
+          Inc(Count);
+          Posn := Pos('.',IP);
+          If ((Posn = 0)And ((StrToInt(Ip) > 255) or (Length(Ip) > 3))) then
+            Exit;
+        End;
+        If(Count <>3) Then
+          Exit;
+      End;
+    End;
+    Result :=True;
+End;
+
+procedure TForm1.ToIpTxtKeyUp(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+   {It will enable scan button only when all textboxes will valid ip address}
+    If(FromIpTxt.Text <>'') And (ToIpTxt.Text <> '') And(NoOfThreadsTxt.Text <> '')
+    and IpAddrValidation(FromIpTxt.Text) and IpAddrValidation(ToIpTxt.Text) Then
+     begin
+      ScanBtn.Enabled := True;
+     end
+     else
+           ScanBtn.Enabled := False;
+end;
+
+procedure TForm1.FromIpTxtKeyUp(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+
+   {It will enable scan button only when all textboxes will valid ip address}
+    If(FromIpTxt.Text <>'') And (ToIpTxt.Text <> '') And(NoOfThreadsTxt.Text <> '')
+    and IpAddrValidation(FromIpTxt.Text) and IpAddrValidation(ToIpTxt.Text) Then
+     begin
+      ScanBtn.Enabled := True;
+     end
+     else
+           ScanBtn.Enabled := False;
+
+end;
+
+procedure TForm1.ScanBtnClick(Sender: TObject);
+var
+  StartIp,LastIp:string;  {To hold start and last ip address in string format}
+  StartIpInt,LastIpInt : Integer;   {to hold start and last Ip address in int format}
+  ThreadCount,Difference,count,i : Integer;
+  MISThread : MainIpScannerThread;  {MainIpScannerThread Object to create Main thread}
+begin
+  try
+    StartIp := FromIpTxt.Text;    {gets start Ip from first textbox}
+    LastIp := ToIpTxt.Text;       {gets end Ip from first textbox}
+    count := 0;
+    ThreadCount := StrToInt(NoOfThreadsTxt.Text);  {gets thread count entered by user from first textbox}
+    ListViewIp.Clear;                       {Clears List View}
+    {Checks if Start ip contains 3 dots(.) if it has more gives error}
+    for i:= 1 to Length(StartIp) do
+    begin
+      if StartIp[i]='.' then
+        count := count + 1;
+    end;
+    if count > 3 then
+    begin
+      MessageBox(0,'Invalid Ip','Warning Message',MB_OK);
+      FromIpTxt.SetFocus;
+      Exit;
+    end;
+    if count < 3 then
+    begin
+      MessageBox(0,'Invalid Ip','Warning Message',MB_OK);
+      FromIpTxt.SetFocus;
+      Exit;
+    end;
+    count := 0;
+        {Checks if Start ip contains 3 dots(.) if it has more gives error}
+    for i:= 1 to Length(LastIp) do
+    begin
+      if LastIp[i]='.' then
+        count := count + 1;
+    end;
+    if count > 3 then
+    begin
+      MessageBox(0,'Invalid Ip','Warning Message',MB_OK);
+      ToIpTxt.SetFocus;
+      Exit;
+    end;
+    if count < 3 then
+    begin
+      MessageBox(0,'Invalid Ip','Warning Message',MB_OK);
+      ToIpTxt.SetFocus;
+      Exit;
+    end;
+    if ThreadCount = 0 then
+    begin
+      MessageBox(0,'Please Enter Thread Count greater than 1','Warning Message',MB_OK);
+      NoOfThreadsTxt.Text := '';
+      NoOfThreadsTxt.SetFocus;
+      Exit;
+    end;
+    if IpAddrValidation(StartIp) and IpAddrValidation(LastIp) then
+    begin
+      StartIpInt   := ntohl(inet_addr(PChar(StartIp)));      //Converts Ip address into long int(which will be in host byte oreder i.e. little endian)
+      LastIpInt     := ntohl(inet_addr(PChar(LastIp)));     //Converts Ip address into long int(which will be in host byte oreder i.e. little endian)
+
+      if StartIpInt > LastIpInt then          //if start ip is greater than last then stops
+      begin
+        MessageBox(0,'Invalid Ip Range','Warning Message',MB_OK);
+        FromIpTxt.Text := '';
+        FromIpTxt.SetFocus;
+        Exit;
+      end
+      else
+      begin
+        Difference := LastIpInt - StartIpInt + 1 ;
+        if ThreadCount > Difference then
+        MessageBox(0,'Thread Count is greater than No of hosts in range.','Confirmation',MB_OK);
+
+        if (Difference > 7000) then        {if given ip range is too big them it exits}
+        begin
+          MessageBox(0,'Ip Range Too Big','Warning Message',MB_OK);
+          FromIpTxt.Text := '';
+          ToIpTxt.Text := '';
+          FromIpTxt.SetFocus;
+          Exit;
+        end;
+        FromIpTxt.Enabled := False;
+        ToIpTxt.Enabled := False;
+        NoOfThreadsTxt.Enabled := False;
+        ScanBtn.Enabled := False;
+        StopBtn.Enabled := True;
+        StopBtn.SetFocus;
+
+
+        MISThread := MainIpScannerThread.Create(True);       //creating main thread
+        {Passing threadcount,startIp , ednIp and some of the controls on form
+         and attaching onclick event to button of mainipscannerthread to
+         execute its own method on button click}
+        MISThread.MISTNoOfThreads := ThreadCount;
+        MISThread.MISTFromIpInt := StartIpInt;
+        MISThread.MISTToIpInt := LastIpInt;
+        MISThread.Btn := StopBtn;
+        MISThread.MISTStartBtn := ScanBtn;
+        MISThread.MISTFromIpTxt := FromIpTxt;
+        MISThread.MISTToIpTxt := ToIpTxt;
+        MISThread.MISTNoOfThreadsTxt := NoOfThreadsTxt;
+        MISThread.MISTLstView := ListViewIp;
+        MISThread.Btn.OnClick := MISThread.StopBtnClick;
+        MISThread.Resume;
+      end;
+    end
+    else
+    begin
+      if not IpAddrValidation(StartIp) then
+      begin
+        MessageBox(0,'Invalid Ip','Warning Message',MB_OK);
+        FromIpTxt.SetFocus;
+      end
+      else if not IpAddrValidation(LastIp) then
+      begin
+        MessageBox(0,'Invalid Ip','Warning Message',MB_OK);
+        ToIpTxt.SetFocus;
+      end;
+    end;
+  except
+    On E: Exception do
+    Begin
+      ShowMessage('Exception :' + E.Message); //Exception
+  	End;
+  end;
+end;
+
+{ MainIpScannerThread }
+
+constructor MainIpScannerThread.Create(CreateSuspended: Boolean);
+begin
+   {creating thread which will be in suspended state at starting}
+  inherited Create(CreateSuspended);
+  {setting threads to free on terminating thread }
+  FreeOnTerminate := True;
+end;
+
+procedure MainIpScannerThread.Execute;
+var
+  HNFThread : HstNameFndrThread;   //hstnamefndrthread class object
+  Temp : Integer;
+begin
+  inherited;
+  try
+    Temp := MISTToIpInt;
+    NoOfHNFTCreated := 1;
+    while   MISTFromIpInt <= MISTToIpInt do      //loop will continue when startip is less than endip
+    begin
+
+
+      while NoOfHNFTCreated > MISTNoOfThreads do    //it will wait for thread count to get less than number of thread entered by user
+        Sleep(1);
+
+      HNFThread := HstNameFndrThread.Create(True);
+      HNFThread.IP := MISTFromIpInt;
+      HNFThread.OnTerminate := OnThreadDone;
+      HNFThread.HNFTLstView := MISTLstView;
+      NoOfHNFTCreated := NoOfHNFTCreated + 1;
+      MISTFromIpInt := MISTFromIpInt + 1;
+      HNFThread.Resume;
+      Randomize;
+
+      Sleep(Random(50));
+    end;
+    while NoOfHNFTCreated <> 1 do
+      Sleep(1);
+
+    if MISTToIpInt <> Temp then         //stoppimg condition
+    begin
+      MessageBox(0,'Scanning Stooped By user','Scanning Stopped',MB_OK);
+    end
+    else
+    begin
+      MessageBox(0,'Scanning Completed Successfully','Scanning Completed',MB_OK);
+    end;
+
+    MISTStartBtn.Enabled := True;
+    Btn.Enabled := False;
+    MISTStartBtn.SetFocus;
+    MISTFromIpTxt.Enabled := True;
+    MISTToIpTxt.Enabled := True;
+    MISTNoOfThreadsTxt.Enabled := True;
+    Windows.SetFocus(0);
+    Exit;
+  except
+  end;
+end;
+
+procedure MainIpScannerThread.OnThreadDone(Sender: TObject);
+begin
+    NoOfHNFTCreated := NoOfHNFTCreated - 1;    //when thread ends decrements thread count
+end;
+
+{ HstNameFndrThread }
+
+constructor HstNameFndrThread.Create(CreateSuspended: Boolean);
+begin
+  inherited Create(CreateSuspended);
+  FreeOnTerminate := True;
+end;
+
+procedure HstNameFndrThread.Execute;
+var
+  StartIpInAddr : TInAddr;
+  IPStringLcl : string;      //holds Ip address in string format
+  SockAddrIn: TSockAddrIn;
+  WSAData   : TWSAdata;        //holds information about socket implementation (windows)
+  HostEnt   : PHostEnt;        //it is record which will hold host name and info related to it
+  Lst : TListItem;
+begin
+  inherited;
+  try
+    StartIpInAddr.S_addr := ntohl(IP);        {Converting again from host byte order to network byte order integer format}
+    IPStringLcl := inet_ntoa(StartIpInAddr);   {Getting Ip address in string format}
+    Lst:= HNFTLstView.Items.Add;
+    Lst.Caption := IPStringLcl;
+
+    { It is call to function winsock API..$101 is highest
+     socket implementation version And WSAdata is
+    TWSAData record instance}
+
+    WSAStartup($101, WSAData);
+    SockAddrIn.sin_addr.s_addr:= inet_addr(PChar(IPStringLcl));
+    HostEnt:= gethostbyaddr(@SockAddrIn.sin_addr.S_addr, 4, AF_INET);    //Getting Hostname From Ip address
+
+    If HostEnt<>nil then
+      Lst.SubItems.Add(Hostent^.h_name)     {Adding Second column entry}
+     Else
+      Lst.SubItems.Add('not found');        {Adding Second column entry}
+    WSACleanup;                             {It clears if any Socket call is pending}
+  except
+  end;
+end;
+
+procedure mainIPScannerThread.StopBtnClick(Sender: TObject);
+begin
+  MISTToIpInt := MISTFromIpInt;    //sets EndIp To StartIp To Hault Scanning
+   btn.Enabled := False;
+end;
+
+procedure TForm1.FormCanResize(Sender: TObject; var NewWidth,
+  NewHeight: Integer; var Resize: Boolean);
+begin
+  Resize := False;  //Restricts form from resizing
+end;
+procedure TForm1.NoOfThreadsTxtKeyUp(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+    {It will enable scan button only when all textboxes will valid ip address}
+    If(FromIpTxt.Text <>'') And (ToIpTxt.Text <> '') And(NoOfThreadsTxt.Text <> '')
+    and IpAddrValidation(FromIpTxt.Text) and IpAddrValidation(ToIpTxt.Text) Then
+     begin
+      ScanBtn.Enabled := True;
+     end
+     else
+           ScanBtn.Enabled := False;
+
+end;
+
+end.
